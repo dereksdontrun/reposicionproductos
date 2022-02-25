@@ -855,11 +855,12 @@ class ReposicionProductos extends Module
 			ORDER BY ".$orderby;
 		}elseif ($idtipo == 8){
 			//Si el informe es de productos con cambio de tipo ABC usamos esta otra sql
+			//25/02/2022 Añado que avise si el productotiene un descuento, que debe ser indefinido
 			$sql = "SELECT col.id_product AS Producto, col.id_product_attribute, col.abc AS abc, col.abc_previo AS abc_previo, pla.name AS Nombre,
 			IFNULL(pat.reference, pro.reference) AS Referencia, IFNULL(pat.ean13, pro.ean13) AS EAN13, wpl.location AS Localizacion,
 			(SELECT SUM(physical_quantity) FROM lafrips_stock WHERE id_product = col.id_product AND id_product_attribute = IFNULL( col.id_product_attribute, 0) AND id_warehouse = 1)  AS Stock_Online,
 			(SELECT SUM(physical_quantity) FROM lafrips_stock WHERE id_product = col.id_product AND id_product_attribute = IFNULL( col.id_product_attribute, 0) AND id_warehouse = 4) AS Stock_Tienda,   
-			loc.r_location AS Loc_repo, con.consumo AS consumo 
+			loc.r_location AS Loc_repo, con.consumo AS consumo, IF(spp.id_product, 'Si', 'No') AS descuento 
 			FROM lafrips_consumos_log col
 			JOIN lafrips_product pro ON pro.id_product = col.id_product
 			LEFT JOIN lafrips_consumos con ON con.id_product = col.id_product AND con.id_product_attribute = col.id_product_attribute
@@ -868,6 +869,11 @@ class ReposicionProductos extends Module
 			LEFT JOIN lafrips_localizaciones loc ON loc.id_product = col.id_product AND loc.id_product_attribute = col.id_product_attribute
 			LEFT JOIN lafrips_warehouse_product_location wpl ON wpl.id_product = col.id_product AND wpl.id_product_attribute = col.id_product_attribute
 				AND wpl.id_warehouse = 1
+			LEFT JOIN lafrips_specific_price spp ON pro.id_product = spp.id_product
+				AND spp.from_quantity = 1    
+				AND spp.id_specific_price_rule = 0 #solo descuentos indefinidos
+				AND spp.id_customer = 0
+				AND spp.to = '0000-00-00 00:00:00' #solo descuentos indefinidos
 			WHERE col.date_add BETWEEN ".$form_fecha_desde." AND ".$form_fecha_hasta."
 			AND col.abc != col.abc_previo
 			AND col.abc_previo != '-'
@@ -1087,7 +1093,8 @@ class ReposicionProductos extends Module
 			<th width="14%"><span style="font-size: 40px; text-decoration: underline">Nombre</span></th>
 			<th width="6%"><span style="font-size: 30px; text-decoration: underline">Desde</span></th>
 			<th width="6%"><span style="font-size: 30px; text-decoration: underline">Hasta</span></th>
-			<th width="10%"><span style="font-size: 40px; text-decoration: underline">Consumo</span></th>
+			<th width="5%"><span style="font-size: 30px; text-decoration: underline">Cons</span></th>
+			<th width="5%"><span style="font-size: 30px; text-decoration: underline">Desc</span></th>
 		    <th width="11%" style="text-align:right;"><span style="font-size: 40px; text-decoration: underline">Picking</span></th>
 		    <th width="7%"><span style="font-size: 35px; text-decoration: underline">Online</span></th>
 			<th width="8%"><span style="font-size: 35px; text-decoration: underline">Tienda</span></th>
@@ -1248,6 +1255,7 @@ class ReposicionProductos extends Module
 						<td style="text-align:center;">'.$row['abc_previo'].'</td>
 						<td style="text-align:center;">'.$row['abc'].'</td>
 						<td style="text-align:center;">'.$consumo.'</td>
+						<td style="text-align:center;">'.$row['descuento'].'</td>
     					<td style="text-align:right;">'.$row['Localizacion'].'</td>    					
     					<td style="text-align:center;">'.$row['Stock_Online'].'</td>
     					<td style="text-align:center;">'.$row['Stock_Tienda'].'</td>
