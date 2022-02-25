@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<module>
+	<name>reposicionproductos</name>
+	<displayName><![CDATA[Reposici&oacute;n de Productos]]></displayName>
+	<version><![CDATA[1.0.0]]></version>
+	<description><![CDATA[Genera un PDF con los productos en pedidos en un determinado estado entre fechas, para su reposici&oacute;n o consultar el stock.]]></description>
+	<author><![CDATA[Sergio (bueno, m&aacute;s o menos)]]></author>
+	<tab><![CDATA[administration]]></tab>
+	<is_configurable>1</is_configurable>
+	<need_instance>0</need_instance>
+	<limited_countries></limited_countries>
+</module>
