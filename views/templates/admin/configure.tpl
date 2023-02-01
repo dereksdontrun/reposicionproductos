@@ -222,6 +222,15 @@
 		    }
 		 });
 
+		 //18/11/2022 Vamos a añadir un nuevo Radio Button para sacar los productos vendidos A y B con stock,  entre las fechas escogidas y con localización de reposición   
+	   var fecha_hasta_reposicion_a_b = $('#aux_reposicion_a_b').val();
+
+	   $('#reposicion_a_b').change(function () {
+		    if($('#reposicion_a_b').prop('checked') == true){
+		    	$('#productosvendidos_DESDE').val(fecha_hasta_reposicion_a_b);
+		    }
+		 });
+
 
 	});
 </script>

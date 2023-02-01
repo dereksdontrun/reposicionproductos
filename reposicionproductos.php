@@ -81,6 +81,9 @@ if (!defined('_PS_VERSION_')) {
 			CASE '9':	            
 	            $informe = 'REPOSICIÓN C';
 	            break;
+			CASE '10':	            
+	            $informe = 'REPOSICIÓN A B';
+	            break;
 	    	}
 	    	//la fecha hasta la cogemos dependiendo de si está marcado el check de Hasta ahora o del datepicker, si está marcado el check cogemos NOW o date
 	    	if (Tools::getValue('oculto_hasta')){    		
@@ -318,7 +321,12 @@ class ReposicionProductos extends Module
 								'id' => 'reposicion_c',								
 								'value' => 9,			                   
 								'label' => $this->l('REPOSICIÓN PRODUCTOS C (Mostrará los productos vendidos entre las fechas seleccionadas con clasificación C, stock físico y localizados a partir de 2ª altura o con dos localizaciones de reposición)')
-						)
+						 ),
+						 array(
+							'id' => 'reposicion_a_b',								
+							'value' => 10,			                   
+							'label' => $this->l('REPOSICIÓN PRODUCTOS A y B (Mostrará los productos vendidos entre las fechas seleccionadas con clasificación A o B, NO NOVEDADES, y con stock físico, que tengan localización de reposición)')
+					)
 			              ),
 			             'is_bool' => true,                                              
 			            'required' => true
@@ -343,6 +351,7 @@ class ReposicionProductos extends Module
 							//17/12/2020 Añado otro para fecha hasta de productos con descatalogados con stock
 							//30/03/2021 Añado otro para fecha hasta de productos cambio ABC
 							//15/05/2021 Añado otro para fecha hasta de productos reposición tipo C
+							//18/11/2022 Añadido para reposición a y b
 					
 					array(
 						'type' => 'hidden',						
@@ -404,6 +413,12 @@ class ReposicionProductos extends Module
 						'name' => 'aux_reposicion_c',				
 					),
 
+					array(
+						'type' => 'hidden',												
+						'id' => 'aux_reposicion_a_b',
+						'name' => 'aux_reposicion_a_b',				
+					),
+
 			       ),
 
                 'submit' => array(
@@ -458,6 +473,9 @@ class ReposicionProductos extends Module
 	            break; 
 			CASE '9':
 	            $idtipo = 9;
+	            break;
+			CASE '10':
+	            $idtipo = 10;
 	            break;  
 	    	}
 	    	//consulta a base de datos para sacar la fecha_hasta del tipo de informe correspondiente. Busca la última ordenando de más vieja a más nueva por id_informe
@@ -551,6 +569,13 @@ class ReposicionProductos extends Module
 		foreach ($results as $resultado) {			
 			$aux_reposicion_c = $resultado['fecha'];
 		}
+
+		//PRODUCTOS Reposición A y B 18/11/2022
+		$sql = "SELECT fecha_hasta AS fecha FROM frik_informes_reposicion WHERE id_tipo = 10 ORDER BY id_informe DESC LIMIT 1;";
+		$results = Db::getInstance()->ExecuteS($sql);
+		foreach ($results as $resultado) {			
+			$aux_reposicion_a_b = $resultado['fecha'];
+		}
     	
         return array(            
             "productosvendidos_DESDE" => $date_desde, 
@@ -565,6 +590,7 @@ class ReposicionProductos extends Module
 			// 'aux_descatalogadosconstock' => $aux_descatalogadosconstock,  //13/05/2021 lo quitamos de momento
 			'aux_cambio_abc' => $aux_cambio_abc,
 			'aux_reposicion_c' => $aux_reposicion_c,
+			'aux_reposicion_a_b' => $aux_reposicion_a_b,
             "informe" => Configuration::get('informe')                           
         );
     }
@@ -676,6 +702,12 @@ class ReposicionProductos extends Module
 				$form_estados_pedido_etc = '';	
 				$orderby = '';            
 				break;
+			CASE '10': //añadir condiciones para que salgan los productos vendidos entre las fechas correspondientes que sean tipo A o B, no novedades, con stock físico y localización de reposición
+			//como no me vale la $sql para los otros informes la creo entera abajo           
+				$informe = 'REPOSICIÓN A B';
+				$form_estados_pedido_etc = '';	
+				$orderby = '';            
+				break;
 	    }
                         
         $this -> generar_pdf($form_fecha_desde, $form_fecha_hasta, $form_estados_pedido_etc, $orderby);
@@ -726,6 +758,10 @@ class ReposicionProductos extends Module
 			CASE '9': 	            
 	            $tipoinforme = 'REPOSICION PRODUCTOS C';
 	            $idtipo = 9;
+	            break;
+			CASE '10': 	            
+	            $tipoinforme = 'REPOSICION A B';
+	            $idtipo = 10;
 	            break;
 	    	}
 
@@ -883,6 +919,8 @@ class ReposicionProductos extends Module
 		}elseif ($idtipo == 9){
 			//Si el informe es de reposición productos Cs, usamos esta sql
 			//08/10/2021 añadidas dos zonas más de palets para repo, 1501 y 1502
+			//01/02/2023 Ordenamos por localización principal y no reposición
+			// ORDER BY loc.r_location ASC, UnidadesVendidas DESC
 			$sql = "SELECT ode.product_id AS Producto, ode.product_reference AS Referencia, ode.product_ean13 AS EAN13, cla.name AS Categoria, ode.product_name AS Nombre, fla.value AS Tipo, SUM( ode.product_quantity ) AS UnidadesVendidas, 		
 			(SELECT SUM(physical_quantity) FROM lafrips_stock WHERE id_product = ode.product_id AND id_product_attribute = ode.product_attribute_id AND id_warehouse = 1) AS Stock_Online,			
 			wpl.location AS Localizacion,  loc.r_location AS Loc_repo, 
@@ -920,7 +958,49 @@ class ReposicionProductos extends Module
 			AND fla.id_lang = 1
 			AND fpr.id_feature = 8	
 			AND ord.id_customer NOT IN (SELECT id_customer FROM lafrips_customer_group WHERE id_group = 10)  #evitamos los clientes del grupo CAJAS		
-			GROUP BY ode.product_id, ode.product_attribute_id ORDER BY loc.r_location ASC, UnidadesVendidas DESC";
+			GROUP BY ode.product_id, ode.product_attribute_id ORDER BY wpl.location ASC";
+		} elseif ($idtipo == 10){
+			//Si el informe es de reposición a y b, usamos esta sql	
+			//01/02/2023 Ordenamos por localización principal y no reposición
+			// ORDER BY loc.r_location ASC, UnidadesVendidas DESC		
+			$sql = "SELECT ode.product_id AS Producto, ode.product_reference AS Referencia, ode.product_ean13 AS EAN13, cla.name AS Categoria, ode.product_name AS Nombre, fla.value AS Tipo, SUM( ode.product_quantity ) AS UnidadesVendidas, 		
+			(SELECT SUM(physical_quantity) FROM lafrips_stock WHERE id_product = ode.product_id AND id_product_attribute = ode.product_attribute_id AND id_warehouse = 1) AS Stock_Online,			
+			wpl.location AS Localizacion,  loc.r_location AS Loc_repo, 
+			CASE                                
+				WHEN DATEDIFF(NOW(), pro.date_add) <=  (SELECT value FROM lafrips_configuration                                                                                      											WHERE name = 'CLASIFICACIONABC_NOVEDAD')  THEN 'N'
+				WHEN con.consumo IS NULL THEN 1
+			ELSE IF((con.consumo < 0.5), 1, ROUND(con.consumo, 0))
+			END AS consumo
+			FROM lafrips_orders ord
+			JOIN lafrips_order_detail ode ON ord.id_order = ode.id_order		
+			JOIN lafrips_product pro ON ode.product_id = pro.id_product
+			JOIN lafrips_category_lang cla ON pro.id_category_default = cla.id_category		
+			LEFT JOIN lafrips_warehouse_product_location wpl ON wpl.id_product = ode.product_id AND wpl.id_product_attribute = ode.product_attribute_id
+			LEFT JOIN lafrips_feature_product fpr ON ode.product_id = fpr.id_product
+			LEFT JOIN lafrips_feature_value_lang fla ON fpr.id_feature_value = fla.id_feature_value
+			LEFT JOIN lafrips_localizaciones loc ON loc.id_product = ode.product_id AND loc.id_product_attribute = ode.product_attribute_id
+			LEFT JOIN lafrips_consumos con ON con.id_product = ode.product_id AND con.id_product_attribute = ode.product_attribute_id
+			WHERE ord.valid = 1 
+			AND ord.date_add BETWEEN ".$form_fecha_desde." AND ".$form_fecha_hasta."
+			AND ord.current_state IN (2,3,4,9,17,20,23,26,27,28,29,34,40,41,42,43,55,56,59,64,65)
+			#AND ode.product_id IN (SELECT id_product FROM lafrips_category_product WHERE id_category = 2266) 
+			AND (SELECT SUM(physical_quantity) FROM lafrips_stock 
+				WHERE id_product = ode.product_id AND id_product_attribute = ode.product_attribute_id AND id_warehouse = 1) > 0		
+			AND loc.r_location != ''
+			AND loc.r_location IS NOT NULL	
+			AND ( #sacar solo los A o B - No novedad, consumo de más o igual a 0.5
+			CASE                                
+				WHEN DATEDIFF(NOW(), pro.date_add) <= (SELECT value FROM lafrips_configuration                                                                                      											WHERE name = 'CLASIFICACIONABC_NOVEDAD') THEN 0
+				WHEN con.consumo IS NULL THEN 0
+			ELSE IF((con.consumo < 0.5), 0, 1)
+			END
+			)
+			AND cla.id_lang = 1 
+			AND wpl.id_warehouse =1	
+			AND fla.id_lang = 1
+			AND fpr.id_feature = 8	
+			AND ord.id_customer NOT IN (SELECT id_customer FROM lafrips_customer_group WHERE id_group = 10)  #evitamos los clientes del grupo CAJAS		
+			GROUP BY ode.product_id, ode.product_attribute_id ORDER BY wpl.location ASC";
 		}
 			    
 		$resultados = Db::getInstance()->executeS($sql);
@@ -1113,6 +1193,18 @@ class ReposicionProductos extends Module
 		    <th width="10%"><span style="font-size: 40px; text-decoration: underline">Consumo Medio</span></th>';
 
 		}
+
+		if (Tools::getValue('informe') == 10){ //Si el informe es reposición a y b (es igual que el 9)
+			$html = $html.'<th width="6%"><span style="font-size: 40px; text-decoration: underline">ID</span></th>
+		    <th width="13%"><span style="font-size: 40px; text-decoration: underline">Referencia</span></th>    
+		    <th width="19%"><span style="font-size: 40px; text-decoration: underline">Nombre</span></th>
+		    <th width="14%" style="text-align:right;"><span style="font-size: 40px; text-decoration: underline">Picking</span></th>
+		    <th width="4%"><span style="font-size: 40px; text-decoration: underline">Ud</span></th>
+		    <th width="7%"><span style="font-size: 35px; text-decoration: underline">Stock</span></th>		    
+		    <th width="14%" style="text-align:right;"><span style="font-size: 40px; text-decoration: underline">Reposición</span></th>
+		    <th width="10%"><span style="font-size: 40px; text-decoration: underline">Consumo Medio</span></th>';
+
+		}
 		    
 		$html = $html.'</tr>';
 		  
@@ -1262,6 +1354,16 @@ class ReposicionProductos extends Module
     					<td style="text-align:right;">'.$row['Loc_repo'].'</td>'; 
 
     			} else if (Tools::getValue('informe') == 9){//informe de productos tipo C
+    				$html = $html.'
+						<td>'.$row['Producto'].'</td>
+						<td>'.$row['Referencia'].'</td> 		
+    					<td>'.$row['Nombre'].'</td>
+    					<td style="text-align:center;">'.$row['Localizacion'].'</td>
+    					<td style="text-align:center;">'.$row['UnidadesVendidas'].'</td>
+    					<td style="text-align:center;">'.$row['Stock_Online'].'</td>    					
+    					<td style="text-align:center;">'.$row['Loc_repo'].'</td>
+						<td style="text-align:center;">'.$row['consumo'].'</td>'; 
+    			} else if (Tools::getValue('informe') == 10){//informe de reposición A y B (igual que el 9)
     				$html = $html.'
 						<td>'.$row['Producto'].'</td>
 						<td>'.$row['Referencia'].'</td> 		
