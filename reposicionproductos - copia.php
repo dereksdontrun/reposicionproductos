@@ -29,7 +29,7 @@
 // 21/08/2019 Nuevo informe que saque los productos que se han transferido desde el almacén de Tienda Múgica al almacén Tienda Online
 // 17/12/2020 informe con productos descatalogados que tienen stock
 // 30/03/2021 informe que muestra los productos que han cambiado de tipo ABC en un período de tiempo, para relocalizarlos
-// 26/02/2025 informe pedidos redstring y amont para dropshipping especial
+
 
 require_once(_PS_TOOL_DIR_.'tcpdf/tcpdf.php');
 
@@ -84,12 +84,6 @@ if (!defined('_PS_VERSION_')) {
 			CASE '10':	            
 	            $informe = 'REPOSICIÓN A B';
 	            break;
-			CASE '11':	            
-	            $informe = 'PEDIDOS REDSTRING';
-	            break;
-			CASE '12':	            
-	            $informe = 'PEDIDOS AMONT';
-	            break;
 	    	}
 	    	//la fecha hasta la cogemos dependiendo de si está marcado el check de Hasta ahora o del datepicker, si está marcado el check cogemos NOW o date
 	    	if (Tools::getValue('oculto_hasta')){    		
@@ -102,9 +96,7 @@ if (!defined('_PS_VERSION_')) {
 	    	//la fecha desde la cogemos del datepicker, ya que si la hemos metido en el datepicker manualmente, ya la tenemos ahí, y si se ha sacado de base de datos, también se ha puesto ya como valor en el datepicker
 	    	$fecha_desde = Tools::getValue('productosvendidos_DESDE');
 	    	
-			//26/02/2025 modificado para que no meta las fechas, solo el nombre del informe
-			// $this->Cell(0, 15, "Reposición - ".$informe." - entre '".date("d-m-Y H:i:s", strtotime($fecha_desde))."' y '".date("d-m-Y H:i:s", strtotime($fecha_hasta))."' ", 0, false, 'R', 0, '', 0, false, 'T', 'M');
-			$this->Cell(0, 15, $informe." '".date("d-m-Y")."'", 0, false, 'R', 0, '', 0, false, 'T', 'M');
+			$this->Cell(0, 15, "Reposición - ".$informe." - entre '".date("d-m-Y H:i:s", strtotime($fecha_desde))."' y '".date("d-m-Y H:i:s", strtotime($fecha_hasta))."' ", 0, false, 'R', 0, '', 0, false, 'T', 'M');
 			                   
 	    }
 	 }
@@ -334,17 +326,7 @@ class ReposicionProductos extends Module
 							'id' => 'reposicion_a_b',								
 							'value' => 10,			                   
 							'label' => $this->l('REPOSICIÓN PRODUCTOS A y B (Mostrará los productos vendidos entre las fechas seleccionadas con clasificación A o B, NO NOVEDADES, y con stock físico, que tengan localización de reposición)')
-						 ),
-						 array(
-							'id' => 'pedidos_redstring',								
-							'value' => 11,			                   
-							'label' => $this->l('PEDIDOS REDSTRING DROPSHIPPING ESPECIAL')
-						 ),
-						 array(
-							'id' => 'pedidos_amont',								
-							'value' => 12,			                   
-							'label' => $this->l('PEDIDOS AMONT DROPSHIPPING ESPECIAL')
-						 ),
+					)
 			              ),
 			             'is_bool' => true,                                              
 			            'required' => true
@@ -494,13 +476,7 @@ class ReposicionProductos extends Module
 	            break;
 			CASE '10':
 	            $idtipo = 10;
-	            break; 
-			CASE '11':
-	            $idtipo = 11;
-	            break;
-			CASE '12':
-	            $idtipo = 12;
-	            break; 
+	            break;  
 	    	}
 	    	//consulta a base de datos para sacar la fecha_hasta del tipo de informe correspondiente. Busca la última ordenando de más vieja a más nueva por id_informe
 	    	$sql = "SELECT fecha_hasta AS fecha FROM frik_informes_reposicion WHERE id_tipo = ".$idtipo." ORDER BY id_informe DESC LIMIT 1;";
@@ -732,18 +708,6 @@ class ReposicionProductos extends Module
 				$form_estados_pedido_etc = '';	
 				$orderby = '';            
 				break;
-			CASE '11': //productos de los pedidos redstring dropshipping especial
-				//como no me vale la $sql para los otros informes la creo entera abajo           
-				$informe = 'PEDIDOS REDSTRING';
-				$form_estados_pedido_etc = '';	
-				$orderby = '';            
-				break;
-			CASE '12': //productos de los pedidos amont dropshipping especial
-			//como no me vale la $sql para los otros informes la creo entera abajo           
-				$informe = 'PEDIDOS AMONT';
-				$form_estados_pedido_etc = '';	
-				$orderby = '';            
-				break;
 	    }
                         
         $this -> generar_pdf($form_fecha_desde, $form_fecha_hasta, $form_estados_pedido_etc, $orderby);
@@ -798,14 +762,6 @@ class ReposicionProductos extends Module
 			CASE '10': 	            
 	            $tipoinforme = 'REPOSICION A B';
 	            $idtipo = 10;
-	            break;
-			CASE '11': 	            
-	            $tipoinforme = 'PEDIDOS REDSTRING';
-	            $idtipo = 11;
-	            break;
-			CASE '12': 	            
-	            $tipoinforme = 'PEDIDOS AMONT';
-	            $idtipo = 12;
 	            break;
 	    	}
 
@@ -1045,56 +1001,6 @@ class ReposicionProductos extends Module
 			AND fpr.id_feature = 8	
 			AND ord.id_customer NOT IN (SELECT id_customer FROM lafrips_customer_group WHERE id_group = 10)  #evitamos los clientes del grupo CAJAS		
 			GROUP BY ode.product_id, ode.product_attribute_id ORDER BY wpl.location ASC";
-		} elseif ($idtipo == 11){			
-			$sql = "SELECT ord.id_order AS id_order, 
-			ode.product_ean13 AS ean,
-			ode.product_quantity AS unidades,
-			CONCAT(cus.firstname, ' ', cus.lastname) AS cliente,
-			pla.name AS nombre_producto,
-			ode.product_id AS Producto,
-			CASE
-			WHEN car.name = 'ups' THEN 'UPS'
-			WHEN car.external_module_name = 'glsshipping' THEN 'GLS'
-			ELSE 'ERROR TRANSPORTISTA'
-			END 
-			AS transportista,
-			ode.product_supplier_reference AS referencia_redstring,
-			ode.product_reference AS referencia_frikileria,			
-			adr.city AS destino,
-			DATE_FORMAT( ord.date_add,'%d-%m-%Y %H:%i:%S') AS fecha_pedido
-			FROM lafrips_orders ord
-			JOIN lafrips_order_detail ode ON ode.id_order = ord.id_order
-			JOIN lafrips_customer cus ON ord.id_customer = cus.id_customer
-			JOIN lafrips_address adr ON adr.id_address = ord.id_address_delivery
-			JOIN lafrips_product pro ON pro.id_product = ode.product_id
-			JOIN lafrips_product_lang pla ON pla.id_product = ode.product_id AND pla.id_lang = 1
-			JOIN lafrips_carrier car ON car.id_carrier = ord.id_carrier
-			WHERE ord.current_state = 87			
-			ORDER BY Transportista, ord.id_order DESC;";
-		} elseif ($idtipo == 12) {
-			$sql = "SELECT ord.id_order AS id_order, 
-			ode.product_supplier_reference AS referencia_amont,
-			CASE
-			WHEN car.name = 'ups' THEN 'UPS'
-			WHEN car.external_module_name = 'glsshipping' THEN 'GLS'
-			ELSE 'ERROR TRANSPORTISTA'
-			END 
-			AS transportista,
-			ode.product_quantity AS unidades,
-			ode.product_reference AS referencia_frikileria,
-			pla.name AS nombre_producto,
-			ode.product_id AS Producto,
-			CONCAT(cus.firstname, ' ', cus.lastname) AS cliente, adr.city AS destino,
-			DATE_FORMAT( ord.date_add,'%d-%m-%Y %H:%i:%S') AS fecha_pedido
-			FROM lafrips_orders ord
-			JOIN lafrips_order_detail ode ON ode.id_order = ord.id_order
-			JOIN lafrips_customer cus ON ord.id_customer = cus.id_customer
-			JOIN lafrips_address adr ON adr.id_address = ord.id_address_delivery
-			JOIN lafrips_product pro ON pro.id_product = ode.product_id
-			JOIN lafrips_product_lang pla ON pla.id_product = ode.product_id AND pla.id_lang = 1
-			JOIN lafrips_carrier car ON car.id_carrier = ord.id_carrier
-			WHERE ord.current_state = 86			
-			ORDER BY Transportista, ord.id_order DESC";
 		}
 			    
 		$resultados = Db::getInstance()->executeS($sql);
@@ -1108,14 +1014,7 @@ class ReposicionProductos extends Module
 			Db::getInstance()->ExecuteS($sql);
      	}
 	    
-		//26/02/2025 modificado para que salga apaisado 'L' si es pedidos redstring o amont
-		$orientacion = 'PDF_PAGE_ORIENTATION';
-		if ($idtipo == 11 || $idtipo == 12) {
-			$orientacion = 'L';
-		}
-		
-		// $pdf = new MY_PDF_REPO(PDF_PAGE_ORIENTATION, PDF_UNIT, PDF_PAGE_FORMAT, true, 'UTF-8', false);
-		$pdf = new MY_PDF_REPO($orientacion, PDF_UNIT, PDF_PAGE_FORMAT, true, 'UTF-8', false);
+		$pdf = new MY_PDF_REPO(PDF_PAGE_ORIENTATION, PDF_UNIT, PDF_PAGE_FORMAT, true, 'UTF-8', false);
 		// MOD Cima Digital -  Ponemos OB_CLEAN() para que genere el PDF 
 		ob_clean();
 		// set header and footer fonts
@@ -1165,21 +1064,12 @@ class ReposicionProductos extends Module
 		
 		$html = '';
 		
-		//26/02/2025 modificado para que si es pedidos redstring o amont la imagen tenga menos ancho, al estar apaisado
-		$th_inicial = '
+					
+			$html = $html.'
 		<table>
 			 <table style="width:100%">
 		  <tr>
 		  	<th width="16%"><span style="font-size: 40px; text-decoration: underline">Imagen</span></th>';
-		if ($idtipo == 11 || $idtipo == 12) {
-			$th_inicial = '
-		<table>
-			 <table style="width:100%">
-		  <tr>
-		  	<th width="10%"><span style="font-size: 40px; text-decoration: underline">Imagen</span></th>';
-		}
-					
-			$html = $html.$th_inicial;
 
 
 		if (Tools::getValue('informe') == 0){ //Si el informe es reposición de tienda:
@@ -1314,31 +1204,6 @@ class ReposicionProductos extends Module
 		    <th width="14%" style="text-align:right;"><span style="font-size: 40px; text-decoration: underline">Reposición</span></th>
 		    <th width="10%"><span style="font-size: 40px; text-decoration: underline">Consumo Medio</span></th>';
 
-		}
-
-		if (Tools::getValue('informe') == 11){ //pedidos redstring
-			$html = $html.'<th width="6%" style="text-align:center;"><span style="font-size: 40px; text-decoration: underline">Pedido</span></th>
-			<th width="10%" style="text-align:center;"><span style="font-size: 40px; text-decoration: underline">EAN</span></th>
-			<th width="5%" style="text-align:center;"><span style="font-size: 40px; text-decoration: underline">Ud</span></th>
-			<th width="10%" style="text-align:center;"><span style="font-size: 40px; text-decoration: underline">Cliente</span></th>
-			<th width="15%" style="text-align:center;"><span style="font-size: 40px; text-decoration: underline">Producto</span></th>
-		    <th width="8%" style="text-align:center;"><span style="font-size: 40px; text-decoration: underline">Transporte</span></th>  
-			<th width="10%" style="text-align:center;"><span style="font-size: 40px; text-decoration: underline">Redstring</span></th>
-			<th width="11%" style="text-align:center;"><span style="font-size: 40px; text-decoration: underline">Frikilería</span></th> 
-			<th width="8%" style="text-align:center;"><span style="font-size: 40px; text-decoration: underline">Destino</span></th> 
-			<th width="8%" style="text-align:center;"><span style="font-size: 40px; text-decoration: underline">Fecha</span></th>';
-		}
-
-		if (Tools::getValue('informe') == 12){ //pedidos amont
-			$html = $html.'<th width="6%" style="text-align:center;"><span style="font-size: 40px; text-decoration: underline">Pedido</span></th>	
-			<th width="11%" style="text-align:center;"><span style="font-size: 40px; text-decoration: underline">Ref.Amont</span></th>
-			<th width="8%" style="text-align:center;"><span style="font-size: 40px; text-decoration: underline">Transporte</span></th>		
-			<th width="5%" style="text-align:center;"><span style="font-size: 40px; text-decoration: underline">Ud</span></th>
-			<th width="11%" style="text-align:center;"><span style="font-size: 40px; text-decoration: underline">Ref.Frikilería</span></th>			
-			<th width="18%" style="text-align:center;"><span style="font-size: 40px; text-decoration: underline">Producto</span></th>
-			<th width="11%" style="text-align:center;"><span style="font-size: 40px; text-decoration: underline">Cliente</span></th>
-			<th width="8%" style="text-align:center;"><span style="font-size: 40px; text-decoration: underline">Destino</span></th> 
-			<th width="8%" style="text-align:center;"><span style="font-size: 40px; text-decoration: underline">Fecha</span></th>';
 		}
 		    
 		$html = $html.'</tr>';
@@ -1508,39 +1373,6 @@ class ReposicionProductos extends Module
     					<td style="text-align:center;">'.$row['Stock_Online'].'</td>    					
     					<td style="text-align:center;">'.$row['Loc_repo'].'</td>
 						<td style="text-align:center;">'.$row['consumo'].'</td>'; 
-    			} else if (Tools::getValue('informe') == 11){//pedidos redstring. Destacamos las unidades si son más de una
-					if ($row['unidades'] > 1) {						
-						$unidades = '<td style="text-align:center; background-color: #F8A1A4; color: white; font-size: x-large; border: 1.5px solid black; font-weight: bold;">* '.$row['unidades'].'</td>';
-					} else {
-						$unidades ="td style='text-align:center;'>".$row['unidades']."</td>";
-					}
-    				$html = $html.'
-						<td style="text-align:center;">'.$row['id_order'].'</td>
-						<td style="text-align:center;">'.$row['ean'].'</td> 		
-    					'.$unidades.'
-    					<td style="text-align:center;">'.$row['cliente'].'</td>
-    					<td style="text-align:center;">'.$row['nombre_producto'].'</td>
-    					<td style="text-align:center;">'.$row['transportista'].'</td>    					
-    					<td style="text-align:center;">'.$row['referencia_redstring'].'</td>
-						<td style="text-align:center;">'.$row['referencia_frikileria'].'</td>
-						<td style="text-align:center;">'.$row['destino'].'</td>
-						<td style="text-align:center;">'.$row['fecha_pedido'].'</td>'; 
-    			} else if (Tools::getValue('informe') == 12){//pedidos amont. Destacamos las unidades si son más de una
-					if ($row['unidades'] > 1) {						
-						$unidades = '<td style="text-align:center; background-color: #F8A1A4; color: white; font-size: x-large; border: 1.5px solid black; font-weight: bold;">* '.$row['unidades'].'</td>';
-					} else {
-						$unidades ="td style='text-align:center;'>".$row['unidades']."</td>";
-					}
-    				$html = $html.'
-						<td style="text-align:center;">'.$row['id_order'].'</td>
-						<td style="text-align:center;">'.$row['referencia_amont'].'</td> 		
-    					<td style="text-align:center;">'.$row['transportista'].'</td>
-    					'.$unidades.'
-    					<td style="text-align:center;">'.$row['referencia_frikileria'].'</td>
-    					<td style="text-align:center;">'.$row['nombre_producto'].'</td>    					
-    					<td style="text-align:center;">'.$row['cliente'].'</td>
-						<td style="text-align:center;">'.$row['destino'].'</td>
-						<td style="text-align:center;">'.$row['fecha_pedido'].'</td>'; 
     			}
 		       	
     			$html = $html.'</tr>';	
